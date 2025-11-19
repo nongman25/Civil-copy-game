@@ -1,0 +1,5 @@
+{
+  "name": "CivGenius - AI Civilization",
+  "description": "A turn-based strategy game inspired by Civilization VI. Features a hex-grid map, resource management, and AI opponents powered by heuristics and Gemini API for diplomatic personality.",
+  "requestFramePermissions": []
+}
