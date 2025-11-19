@@ -32,6 +32,13 @@ export function getNeighbors(q: number, r: number): Coordinates[] {
   return NEIGHBOR_OFFSETS.map(d => ({ q: q + d.q, r: r + d.r }));
 }
 
+export function isCoastalCity(city: City, tiles: Tile[]): boolean {
+    return getNeighbors(city.q, city.r).some(n => {
+        const t = tiles.find(tile => tile.q === n.q && tile.r === n.r);
+        return t && t.terrain === TerrainType.WATER;
+    });
+}
+
 // --- Visibility Logic ---
 
 export function isResourceVisible(resourceName: string | undefined, player: Player): boolean {
@@ -175,7 +182,7 @@ export function generateMap(width: number, height: number): Tile[] {
       })
   );
 
-  const RIVER_CHANCE = 0.15; // Reduced river frequency
+  const RIVER_CHANCE = 0.08; // Reduced river frequency
 
   coastalTiles.forEach(source => {
       if (Math.random() > RIVER_CHANCE) return;
@@ -295,7 +302,13 @@ export function findSpawnSpot(city: City, unitType: UnitType, tiles: Tile[], uni
     
     if (centerTile) {
         const isLand = domain === 'LAND';
-        const validTerrain = isLand ? centerTile.terrain !== TerrainType.WATER : centerTile.terrain === TerrainType.WATER; 
+        const isSea = domain === 'SEA';
+        // Naval units can spawn in city if city is coastal (effectively on water for spawn logic, or we check adjacency)
+        // But unit cannot exist on LAND tile if it is SEA domain. 
+        // Civ 6 logic: City Center acts as a canal or valid spot? Generally no, unless it has a Harbor. 
+        // Simplified: Spawn in adjacent water if sea unit.
+        
+        const validTerrain = isLand ? centerTile.terrain !== TerrainType.WATER : false; // Sea units must spawn in water
         
         if (validTerrain) {
             const unitsHere = units.filter(u => u.q === city.q && u.r === city.r);
@@ -354,19 +367,13 @@ export function getVillageReward(player: Player): string {
 }
 
 function expandBorder(city: City, tiles: Tile[]): { tileId: string | null } {
-    // Find all tiles adjacent to current city territory that are unowned
     const territory = tiles.filter(t => t.ownerId === city.ownerId);
     const adjacentUnowned: Tile[] = [];
-
-    // Get city-specific territory (simplification: all player tiles are candidates for adjacency, but we assign to nearest city)
-    // Actually, let's just check neighbors of city-owned tiles that are unowned
     
-    // Optimization: Iterate tiles, if owner is city.ownerId, check neighbors
     const ownedCoords = new Set(territory.map(t => `${t.q},${t.r}`));
     const candidates = new Set<string>();
 
     territory.forEach(t => {
-        // Only consider tiles close to this specific city (max radius 5 for example)
         if (getDistance(t, city) > 4) return;
 
         getNeighbors(t.q, t.r).forEach(n => {
@@ -384,7 +391,6 @@ function expandBorder(city: City, tiles: Tile[]): { tileId: string | null } {
 
     if (adjacentUnowned.length === 0) return { tileId: null };
 
-    // Pick best tile (prioritize resources, then yields)
     adjacentUnowned.sort((a, b) => {
         const scoreA = (a.resource ? 5 : 0) + (a.rivers?.some(r => r) ? 2 : 0) + (a.isHill ? 1 : 0);
         const scoreB = (b.resource ? 5 : 0) + (b.rivers?.some(r => r) ? 2 : 0) + (b.isHill ? 1 : 0);
@@ -401,7 +407,6 @@ export function processTurn(gameState: GameState): GameState {
     nextState.units = aiRes.updatedUnits;
     nextState.cities = [...aiRes.updatedCities, ...aiRes.newCities];
     
-    // Update Tiles with new ownership from AI new cities
     nextState.tiles = nextState.tiles.map(t => {
         const newlyOwned = aiRes.newTileOwners.find(nto => nto.id === t.id);
         return newlyOwned ? { ...t, ownerId: newlyOwned.ownerId } : t;
@@ -414,6 +419,36 @@ export function processTurn(gameState: GameState): GameState {
     nextState.players = nextState.players.map(p => {
         let turnScience = 0, turnCulture = 0, turnGold = 0;
         
+        // Policy Global Effects (Yields)
+        if (p.activePolicies.includes("GOD_KING")) {
+            turnGold += 1;
+            turnCulture += 1;
+        }
+        if (p.activePolicies.includes("STRATEGOS")) {
+            turnGold += 2;
+        }
+        if (p.activePolicies.includes("INSPIRATION")) {
+            turnScience += 2;
+        }
+        if (p.activePolicies.includes("REVELATION")) {
+            turnGold += 1;
+            turnCulture += 1;
+        }
+        if (p.activePolicies.includes("LITERARY_TRADITION")) {
+            turnCulture += 2;
+        }
+
+        // Calculate Maintenance
+        // Basic rule: 1 Gold per unit (simplified)
+        const myUnitsCount = nextState.units.filter(u => u.ownerId === p.id).length;
+        let maintenance = myUnitsCount * 1;
+        if (p.activePolicies.includes("CONSCRIPTION")) {
+            maintenance = Math.max(0, maintenance - myUnitsCount); // Reduce 1 per unit
+        } else if (p.activePolicies.includes("LEVEE_EN_MASSE")) {
+            maintenance = Math.max(0, maintenance - (myUnitsCount * 2));
+        }
+        turnGold -= maintenance;
+
         // City Yields
         nextState.cities.filter(c => c.ownerId === p.id).forEach(c => {
              const centerTile = nextState.tiles.find(t => t.q === c.q && t.r === c.r);
@@ -423,7 +458,6 @@ export function processTurn(gameState: GameState): GameState {
                  turnCulture += centerY.culture;
                  turnGold += centerY.gold;
                  
-                 // Base City Bonus
                  turnScience += 1; 
                  turnCulture += 1;
              }
@@ -445,8 +479,6 @@ export function processTurn(gameState: GameState): GameState {
                  if(b.yields.gold) turnGold += b.yields.gold;
              });
              
-             if (p.activePolicies.includes("URBAN_PLANNING")) turnScience += 0; 
-             if (p.activePolicies.includes("GOD_KING")) { turnGold += 1; }
              if (p.activePolicies.includes("TRADE_CONFEDERATION")) { turnScience += 1; turnCulture += 1; }
         });
 
@@ -531,7 +563,35 @@ export function processTurn(gameState: GameState): GameState {
                  if(b === BuildingType.FACTORY || b === BuildingType.WORKSHOP) turnProd += 3;
              });
              
+             // Policy Production Modifiers
              if (owner.activePolicies.includes("URBAN_PLANNING")) turnProd += 1;
+             
+             if (c.currentProductionTarget) {
+                if (c.currentProductionTarget in UNIT_INFO) {
+                     const uType = c.currentProductionTarget as UnitType;
+                     if (uType === UnitType.BUILDER && owner.activePolicies.includes("ILKUM")) {
+                         turnProd *= 1.3;
+                     }
+                     if (uType === UnitType.SETTLER && owner.activePolicies.includes("COLONIZATION")) {
+                         turnProd *= 1.5;
+                     }
+                     if ((UNIT_INFO[uType].domain === 'LAND' && UNIT_INFO[uType].strength > 0) && owner.activePolicies.includes("AGOGE")) {
+                         // Primitive check for melee/ranged ancient/classical
+                         turnProd *= 1.5;
+                     }
+                     if ((UNIT_INFO[uType].domain === 'LAND') && owner.activePolicies.includes("FEUDAL_CONTRACT")) {
+                         turnProd *= 1.5;
+                     }
+                     if (UNIT_INFO[uType].domain === 'SEA' && owner.activePolicies.includes("INTERNATIONAL_WATERS")) {
+                         turnProd *= 2.0;
+                     }
+                } else {
+                    // Building production mods
+                    if (owner.activePolicies.includes("SKYSCRAPERS")) {
+                        // Wonder check? Assuming no wonders yet, applied to buildings generally for now or skip
+                    }
+                }
+             }
 
              prod += turnProd;
              
@@ -592,17 +652,19 @@ export function processTurn(gameState: GameState): GameState {
         }
 
         // 4. Culture Growth & Border Expansion
-        let cultureStored = c.cultureStored + (1 + c.population * 0.3); // Base city culture
-        // Add culture from buildings/tiles again? No, it's accumulating in global player culture, but CIV6 separates global culture (civics) and local culture (borders).
-        // For simplicity, we reuse the 'culture yield' we calculated for player, but apply a fraction to the city, or just use a simple formula.
-        // Let's use the Buildings + Base
+        let cultureStored = c.cultureStored + (1 + c.population * 0.3);
         let localCulture = 1;
         if(c.buildings.includes(BuildingType.MONUMENT)) localCulture += 2;
-        // Tiles culture is added to player, let's skip adding tile culture to border growth to keep it simple, or re-calc.
+        if (owner && owner.activePolicies.includes("GOD_KING")) localCulture += 1; // City-based bonus? Simplified to global above, but kept consistent if needed.
 
         cultureStored += localCulture;
         let cultureThreshold = c.cultureThreshold;
         
+        // Land Surveyors Effect
+        if (owner && owner.activePolicies.includes("LAND_SURVEYORS")) {
+            cultureThreshold *= 0.8;
+        }
+
         if (cultureStored >= cultureThreshold) {
              const expansion = expandBorder(c, nextState.tiles);
              if (expansion.tileId) {
@@ -611,10 +673,24 @@ export function processTurn(gameState: GameState): GameState {
                      nextState.tiles[tIndex] = { ...nextState.tiles[tIndex], ownerId: c.ownerId };
                      nextState.messages.push({ id: `m-border-${Date.now()}`, text: `${c.name}: 국경 확장`, sender: "System", timestamp: Date.now() });
                      cultureStored = 0; 
-                     cultureThreshold *= 1.3; // Increase threshold
+                     // Reset threshold scaling if modified by policy? No, keep scaling logic
+                     // We need to store base threshold or reverse calc. Simplified: Just multiply logic.
+                     // Actually, if we lower threshold this turn, we should increase the base for next.
+                     // c.cultureThreshold stores the current Target.
+                     
+                     // Revert the temporary modifier to set the *next* real threshold
+                     let nextBase = c.cultureThreshold * 1.3;
+                     if (owner && owner.activePolicies.includes("LAND_SURVEYORS")) {
+                         // If it was reduced, we restore it roughly before scaling? 
+                         // Simplified: Just set next target.
+                         nextBase = (c.cultureThreshold / 0.8) * 1.3;
+                     } else {
+                         nextBase = c.cultureThreshold * 1.3;
+                     }
+                     cultureThreshold = nextBase;
                  }
              } else {
-                 cultureStored = cultureThreshold; // Cap it if no space
+                 cultureStored = cultureThreshold;
              }
         }
 
@@ -622,7 +698,16 @@ export function processTurn(gameState: GameState): GameState {
     });
 
     nextState.turn += 1;
-    nextState.units.forEach(u => u.movesLeft = u.maxMoves);
+    // Policy Movement Modifiers reset
+    nextState.units.forEach(u => {
+        let moves = u.maxMoves;
+        const p = nextState.players.find(pl => pl.id === u.ownerId);
+        if (p) {
+            if (UNIT_INFO[u.type].domain === 'SEA' && p.activePolicies.includes("NAVIGATION")) moves += 1;
+            if (u.type === UnitType.SCOUT && p.activePolicies.includes("SURVEY")) moves += 1;
+        }
+        u.movesLeft = moves;
+    });
 
     return nextState;
 }
@@ -656,7 +741,6 @@ export function executeUnitAction(gameState: GameState, unitId: string, action: 
         }
     }
 
-    // Fallback force build
     if (!improvement) {
         if (action === 'BUILD_FARM') improvement = 'FARM';
         if (action === 'BUILD_MINE') improvement = 'MINE';
@@ -808,7 +892,6 @@ function calculateAiMoves(gameState: GameState) {
                     const t = gameState.tiles.find(tile => tile.q === n.q && tile.r === n.r);
                     if (t && !t.ownerId) newTileOwners.push({ id: t.id, ownerId: player.id });
                  });
-                 // Own the center tile too
                  const centerT = gameState.tiles.find(t => t.q === unit.q && t.r === unit.r);
                  if (centerT) newTileOwners.push({ id: centerT.id, ownerId: player.id });
               }

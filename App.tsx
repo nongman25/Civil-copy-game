@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
 import { UnitType, BuildingType, DiplomaticRelation } from './types';
 import { axialToPixel, getDistance } from './utils/gameUtils';
+import { POLICY_CARDS } from './constants';
 import HexTile from './components/HexTile';
 import UnitActor from './components/UnitActor';
 import GameControls from './components/GameControls';
@@ -130,6 +131,33 @@ const App: React.FC = () => {
      setGameState({ ...gameState, players: updatedPlayers });
   };
 
+  const handleTogglePolicy = (id: string) => {
+     if (!gameState) return;
+     const p = gameState.players[0];
+     const card = POLICY_CARDS.find(c => c.id === id);
+     if (!card) return;
+
+     const isActive = p.activePolicies.includes(id);
+     
+     // Hardcoded limits for now (Simple Chiefdom)
+     const SLOTS = { MILITARY: 2, ECONOMIC: 2, DIPLOMATIC: 2, WILDCARD: 1 };
+     
+     if (!isActive) {
+         const currentCount = p.activePolicies.filter(pid => POLICY_CARDS.find(c => c.id === pid)?.type === card.type).length;
+         if (currentCount >= (SLOTS as any)[card.type]) {
+             addMessage(`${card.type} 정책 슬롯이 가득 찼습니다.`, "System");
+             return;
+         }
+     }
+
+     const newPolicies = isActive
+        ? p.activePolicies.filter(p => p !== id)
+        : [...p.activePolicies, id];
+        
+     const updatedPlayers = gameState.players.map(pl => pl.id === p.id ? { ...pl, activePolicies: newPolicies } : pl);
+     setGameState({...gameState, players: updatedPlayers});
+  };
+
   if (phase === 'SETUP') return <SetupScreen onStart={handleStartGame} />;
   if (!gameState) return <div>Loading...</div>;
 
@@ -196,7 +224,7 @@ const App: React.FC = () => {
              setGameState({...gameState});
          }} 
          onTogglePolicy={() => {
-             // Legacy toggle kept for ResearchPanel compatibility
+             // Legacy toggle kept for ResearchPanel compatibility if needed
          }} 
          onZoom={(d) => setZoom(z => d === 'IN' ? z + 0.2 : z - 0.2)}
          onOpenDiplomacy={() => setShowDiplomacy(true)}
@@ -225,14 +253,7 @@ const App: React.FC = () => {
           <PolicyPanel
              player={gameState.players[0]}
              onClose={() => setShowPolicies(false)}
-             onTogglePolicy={(id) => {
-                 const p = gameState.players[0];
-                 const newPolicies = p.activePolicies.includes(id) 
-                    ? p.activePolicies.filter(p => p !== id)
-                    : [...p.activePolicies, id];
-                 const updatedPlayers = gameState.players.map(pl => pl.id === p.id ? { ...pl, activePolicies: newPolicies } : pl);
-                 setGameState({...gameState, players: updatedPlayers});
-             }}
+             onTogglePolicy={handleTogglePolicy}
           />
       )}
 

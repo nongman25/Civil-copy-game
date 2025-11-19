@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { City, UnitType, BuildingType, Player, Tile } from '../types';
 import { UNIT_INFO, BUILDING_INFO } from '../constants';
-import { getTileYields } from '../utils/gameUtils';
+import { getTileYields, isCoastalCity } from '../utils/gameUtils';
 
 interface CityPanelProps {
   city: City;
@@ -32,6 +32,7 @@ const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onP
   };
 
   const isUnit = (item: string) => item in UNIT_INFO;
+  const isCoastal = isCoastalCity(city, tiles);
   
   const currentProdName = city.currentProductionTarget 
     ? (isUnit(city.currentProductionTarget!) 
@@ -96,7 +97,7 @@ const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onP
 
   // Policy Global Effects
   if (player.activePolicies.includes("URBAN_PLANNING")) totalProd += 1;
-  if (player.activePolicies.includes("GOD_KING")) { totalGold += 1; }
+  if (player.activePolicies.includes("GOD_KING")) { totalGold += 1; totalCulture += 1; }
 
   const foodConsumed = city.population * 2;
   const surplusFood = totalFood - foodConsumed;
@@ -166,6 +167,8 @@ const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onP
         <div className="space-y-1 mb-4">
           {(Object.keys(UNIT_INFO) as UnitType[]).filter(u => u !== 'BARBARIAN_WARRIOR').map((type) => {
             const info = UNIT_INFO[type];
+            if (info.domain === 'SEA' && !isCoastal) return null; // Restrict naval units
+            
             const isLocked = info.requiredTech && !player.researchedTechs.includes(info.requiredTech);
             if (isLocked) return null; 
 
