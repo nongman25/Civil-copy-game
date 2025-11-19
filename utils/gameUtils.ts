@@ -1,6 +1,6 @@
 
 import { Coordinates, Tile, TerrainType, Unit, UnitType, GameState, Player, City, PlayerType, TileYields, BuildingType, DiplomaticRelation } from "../types";
-import { HEX_HEIGHT, HEX_WIDTH, TERRAIN_COST, UNIT_INFO, TERRAIN_YIELDS, RESOURCE_YIELDS, IMPROVEMENT_YIELDS, BUILDING_INFO, TECH_TREE } from "../constants";
+import { HEX_HEIGHT, HEX_WIDTH, TERRAIN_COST, UNIT_INFO, TERRAIN_YIELDS, RESOURCE_YIELDS, IMPROVEMENT_YIELDS, BUILDING_INFO, TECH_TREE, CIVICS_TREE } from "../constants";
 
 // --- Hex Math ---
 
@@ -77,10 +77,8 @@ export function getTileYields(tile: Tile, player?: Player): TileYields {
     // Policy Effects (Tile Based)
     if (player) {
         if (player.activePolicies.includes("FEUDALISM") && tile.improvement === 'FARM') {
-             // Feudalism: Farms adjacent to other farms? (Simplified: just +1 food for now per farm)
              total.food += 1; 
         }
-        // Add more tile specific policy logic here
     }
 
     return total;
@@ -116,7 +114,7 @@ export function generateMap(width: number, height: number): Tile[] {
       
       let terrain: TerrainType = TerrainType.WATER;
       if (elevation < 0.35) terrain = TerrainType.WATER;
-      else if (elevation > 0.85) terrain = TerrainType.MOUNTAIN;
+      else if (elevation > 0.80) terrain = TerrainType.MOUNTAIN; 
       else {
           if (latitude > 0.8) terrain = TerrainType.SNOW;
           else if (latitude > 0.6) terrain = TerrainType.TUNDRA;
@@ -129,7 +127,7 @@ export function generateMap(width: number, height: number): Tile[] {
       }
       if (latitude > 0.92) terrain = TerrainType.SNOW;
 
-      // Hills Logic: Hills appear on land, not on mountains, random noise
+      // Hills Logic
       let isHill = false;
       if (terrain !== TerrainType.WATER && terrain !== TerrainType.MOUNTAIN && hillNoise > 0.6) {
           isHill = true;
@@ -168,44 +166,55 @@ export function generateMap(width: number, height: number): Tile[] {
     }
   }
 
-  // 2. River Generation
-  const potentialSources = tiles.filter(t => t.terrain === TerrainType.MOUNTAIN || t.terrain === TerrainType.SNOW);
-  const RIVER_CHANCE = 0.6;
+  // 2. River Generation (Coast to Inland)
+  const coastalTiles = tiles.filter(t => 
+      t.terrain === TerrainType.WATER && 
+      getNeighbors(t.q, t.r).some(n => {
+          const neighbor = tiles.find(tile => tile.q === n.q && tile.r === n.r);
+          return neighbor && neighbor.terrain !== TerrainType.WATER;
+      })
+  );
 
-  potentialSources.forEach(source => {
+  const RIVER_CHANCE = 0.15; // Reduced river frequency
+
+  coastalTiles.forEach(source => {
       if (Math.random() > RIVER_CHANCE) return;
 
       let current = source;
       let steps = 0;
       
-      while (steps < 25) {
-          let lowestNeighbor: Tile | null = null;
-          let minElev = fbm(current.q, current.r, seed);
+      while (steps < 50) {
+          let highestNeighbor: Tile | null = null;
+          let maxElev = -999;
           let chosenEdgeIdx = -1;
 
           const neighbors = NEIGHBOR_OFFSETS.map(o => ({
               t: tiles.find(t => t.q === current.q + o.q && t.r === current.r + o.r),
               idx: o.edgeIdx
-          })).filter(n => n.t);
+          })).filter(n => n.t && n.t.terrain !== TerrainType.WATER);
+
+          neighbors.sort(() => Math.random() - 0.5);
 
           for (const n of neighbors) {
+             if (n.t!.rivers!.some(r => r)) continue;
+
              const elev = fbm(n.t!.q, n.t!.r, seed);
-             if (elev < minElev) {
-                 minElev = elev;
-                 lowestNeighbor = n.t!;
+             if (elev > maxElev) {
+                 maxElev = elev;
+                 highestNeighbor = n.t!;
                  chosenEdgeIdx = n.idx;
              }
           }
 
-          if (lowestNeighbor && chosenEdgeIdx !== -1) {
+          if (highestNeighbor && chosenEdgeIdx !== -1) {
               current.rivers![chosenEdgeIdx] = true;
-              // The neighbor shares the opposite edge
               const oppositeEdgeIdx = (chosenEdgeIdx + 3) % 6;
-              lowestNeighbor.rivers![oppositeEdgeIdx] = true;
+              highestNeighbor.rivers![oppositeEdgeIdx] = true;
 
-              if (lowestNeighbor.terrain === TerrainType.WATER) break;
-              current = lowestNeighbor;
+              current = highestNeighbor;
               steps++;
+              
+              if (current.terrain === TerrainType.MOUNTAIN) break;
           } else {
               break;
           }
@@ -240,7 +249,6 @@ export function canMoveTo(unit: Unit, targetTile: Tile, allUnits: Unit[], allCit
 
       for (const u of unitsOnTile) {
           const isTargetCombat = UNIT_INFO[u.type].strength > 0;
-          
           if (isMyCombat && isTargetCombat) return false; 
           if (isMyCivilian && !isTargetCombat) return false;
       }
@@ -280,7 +288,6 @@ export function spawnBarbarians(gameState: GameState): Unit[] {
     return newBarbarians;
 }
 
-// Helper to find a valid spawn spot
 export function findSpawnSpot(city: City, unitType: UnitType, tiles: Tile[], units: Unit[]): Coordinates | null {
     const info = UNIT_INFO[unitType];
     const domain = info.domain;
@@ -346,6 +353,47 @@ export function getVillageReward(player: Player): string {
     }
 }
 
+function expandBorder(city: City, tiles: Tile[]): { tileId: string | null } {
+    // Find all tiles adjacent to current city territory that are unowned
+    const territory = tiles.filter(t => t.ownerId === city.ownerId);
+    const adjacentUnowned: Tile[] = [];
+
+    // Get city-specific territory (simplification: all player tiles are candidates for adjacency, but we assign to nearest city)
+    // Actually, let's just check neighbors of city-owned tiles that are unowned
+    
+    // Optimization: Iterate tiles, if owner is city.ownerId, check neighbors
+    const ownedCoords = new Set(territory.map(t => `${t.q},${t.r}`));
+    const candidates = new Set<string>();
+
+    territory.forEach(t => {
+        // Only consider tiles close to this specific city (max radius 5 for example)
+        if (getDistance(t, city) > 4) return;
+
+        getNeighbors(t.q, t.r).forEach(n => {
+            const key = `${n.q},${n.r}`;
+            if (ownedCoords.has(key)) return;
+            if (candidates.has(key)) return;
+
+            const neighborTile = tiles.find(tile => tile.q === n.q && tile.r === n.r);
+            if (neighborTile && !neighborTile.ownerId && neighborTile.terrain !== TerrainType.MOUNTAIN) {
+                adjacentUnowned.push(neighborTile);
+                candidates.add(key);
+            }
+        });
+    });
+
+    if (adjacentUnowned.length === 0) return { tileId: null };
+
+    // Pick best tile (prioritize resources, then yields)
+    adjacentUnowned.sort((a, b) => {
+        const scoreA = (a.resource ? 5 : 0) + (a.rivers?.some(r => r) ? 2 : 0) + (a.isHill ? 1 : 0);
+        const scoreB = (b.resource ? 5 : 0) + (b.rivers?.some(r => r) ? 2 : 0) + (b.isHill ? 1 : 0);
+        return scoreB - scoreA;
+    });
+
+    return { tileId: adjacentUnowned[0].id };
+}
+
 export function processTurn(gameState: GameState): GameState {
     let nextState = { ...gameState, selectedUnitId: null, selectedCityId: null, selectedTileId: null };
       
@@ -353,9 +401,16 @@ export function processTurn(gameState: GameState): GameState {
     nextState.units = aiRes.updatedUnits;
     nextState.cities = [...aiRes.updatedCities, ...aiRes.newCities];
     
+    // Update Tiles with new ownership from AI new cities
+    nextState.tiles = nextState.tiles.map(t => {
+        const newlyOwned = aiRes.newTileOwners.find(nto => nto.id === t.id);
+        return newlyOwned ? { ...t, ownerId: newlyOwned.ownerId } : t;
+    });
+
     const barbs = spawnBarbarians(nextState);
     nextState.units = [...nextState.units, ...barbs];
 
+    // Players Turn Logic
     nextState.players = nextState.players.map(p => {
         let turnScience = 0, turnCulture = 0, turnGold = 0;
         
@@ -390,22 +445,58 @@ export function processTurn(gameState: GameState): GameState {
                  if(b.yields.gold) turnGold += b.yields.gold;
              });
              
-             if (p.activePolicies.includes("URBAN_PLANNING")) turnScience += 0; // Only Prod
-             if (p.activePolicies.includes("GOD_KING")) { turnGold += 1; } // And Faith
-             if (p.activePolicies.includes("TRADE_CONFEDERATION")) { turnScience += 1; turnCulture += 1; } // Simplified as passive
+             if (p.activePolicies.includes("URBAN_PLANNING")) turnScience += 0; 
+             if (p.activePolicies.includes("GOD_KING")) { turnGold += 1; }
+             if (p.activePolicies.includes("TRADE_CONFEDERATION")) { turnScience += 1; turnCulture += 1; }
         });
+
+        let newScience = p.science + turnScience;
+        let newCulture = p.culture + turnCulture;
+        const researchedTechs = [...p.researchedTechs];
+        const researchedCivics = [...p.researchedCivics];
+        let currentTechId = p.currentTechId;
+        let currentCivicId = p.currentCivicId;
+
+        // Research Complete Logic
+        if (currentTechId) {
+            const tech = TECH_TREE.find(t => t.id === currentTechId);
+            if (tech && newScience >= tech.cost) {
+                researchedTechs.push(currentTechId);
+                newScience -= tech.cost;
+                currentTechId = null;
+                if(p.type === PlayerType.HUMAN) {
+                    nextState.messages.push({id: `res-${Date.now()}`, text: `과학 기술 [${tech.name}] 연구 완료!`, sender: 'System', timestamp: Date.now()});
+                }
+            }
+        }
+
+        if (currentCivicId) {
+            const civic = CIVICS_TREE.find(c => c.id === currentCivicId);
+            if (civic && newCulture >= civic.cost) {
+                researchedCivics.push(currentCivicId);
+                newCulture -= civic.cost;
+                currentCivicId = null;
+                if(p.type === PlayerType.HUMAN) {
+                    nextState.messages.push({id: `civ-${Date.now()}`, text: `사회 제도 [${civic.name}] 연구 완료!`, sender: 'System', timestamp: Date.now()});
+                }
+            }
+        }
         
         return {
             ...p,
-            science: p.science + turnScience,
-            culture: p.culture + turnCulture,
+            science: newScience,
+            culture: newCulture,
             gold: p.gold + turnGold,
             scienceYield: Math.floor(turnScience),
-            cultureYield: Math.floor(turnCulture)
+            cultureYield: Math.floor(turnCulture),
+            researchedTechs,
+            researchedCivics,
+            currentTechId,
+            currentCivicId
         };
     });
 
-    // City Growth and Production
+    // City Growth, Production, Border Expansion
     nextState.cities = nextState.cities.map(c => {
         // 1. Healing
         let newHealth = Math.min(c.maxHealth, c.health + 5);
@@ -500,13 +591,31 @@ export function processTurn(gameState: GameState): GameState {
             }
         }
 
-        // Culture Growth
-        let cultureStored = c.cultureStored + (1 + c.population * 0.3);
+        // 4. Culture Growth & Border Expansion
+        let cultureStored = c.cultureStored + (1 + c.population * 0.3); // Base city culture
+        // Add culture from buildings/tiles again? No, it's accumulating in global player culture, but CIV6 separates global culture (civics) and local culture (borders).
+        // For simplicity, we reuse the 'culture yield' we calculated for player, but apply a fraction to the city, or just use a simple formula.
+        // Let's use the Buildings + Base
+        let localCulture = 1;
+        if(c.buildings.includes(BuildingType.MONUMENT)) localCulture += 2;
+        // Tiles culture is added to player, let's skip adding tile culture to border growth to keep it simple, or re-calc.
+
+        cultureStored += localCulture;
         let cultureThreshold = c.cultureThreshold;
+        
         if (cultureStored >= cultureThreshold) {
-             cultureStored = 0; 
-             cultureThreshold *= 1.2;
-             // Border expansion (Simple implementation: no-op visual change for now, or handled in rendering bounds)
+             const expansion = expandBorder(c, nextState.tiles);
+             if (expansion.tileId) {
+                 const tIndex = nextState.tiles.findIndex(t => t.id === expansion.tileId);
+                 if (tIndex !== -1) {
+                     nextState.tiles[tIndex] = { ...nextState.tiles[tIndex], ownerId: c.ownerId };
+                     nextState.messages.push({ id: `m-border-${Date.now()}`, text: `${c.name}: 국경 확장`, sender: "System", timestamp: Date.now() });
+                     cultureStored = 0; 
+                     cultureThreshold *= 1.3; // Increase threshold
+                 }
+             } else {
+                 cultureStored = cultureThreshold; // Cap it if no space
+             }
         }
 
         return { ...c, health: newHealth, production: prod, food: storedFood, population, cultureStored, cultureThreshold };
@@ -630,11 +739,19 @@ export function purchaseItem(gameState: GameState, cityId: string, item: UnitTyp
     return gameState;
 }
 
+const AI_CITY_NAMES: Record<string, string[]> = {
+    "길가메시": ["우루크", "키쉬", "라가시", "니푸르", "에리두", "우르", "바빌론", "아카드", "수사", "움마"],
+    "클레오파트라": ["라-케데트", "테베", "멤피스", "헬리오폴리스", "아비도스", "기자", "알렉산드리아", "피-람세스", "아마르나", "부토"],
+    "진시황": ["시안", "베이징", "청두", "뤄양", "창사", "상하이", "광저우", "항저우", "난징", "카이펑"],
+    "트라야누스": ["로마", "안티움", "쿠마에", "아퀼레이아", "라벤나", "루그두눔", "아레티움", "메디올라눔", "나폴리", "브린디시"]
+};
+
 function calculateAiMoves(gameState: GameState) {
   let updatedUnits = [...gameState.units];
   const updatedCities = [...gameState.cities];
   const newCities: City[] = [];
   const removedUnits: string[] = [];
+  const newTileOwners: { id: string, ownerId: string }[] = [];
 
   const aiPlayers = gameState.players.filter(p => p.type === PlayerType.AI);
   
@@ -672,10 +789,14 @@ function calculateAiMoves(gameState: GameState) {
 
           if (unit.type === UnitType.SETTLER && Math.random() > 0.8) {
               if (!updatedCities.some(c => getDistance(c, unit) < 4)) {
+                 const existingCities = updatedCities.filter(c => c.ownerId === player.id).length;
+                 const nameList = AI_CITY_NAMES[player.leaderName] || [];
+                 const cityName = nameList[existingCities] || `${player.leaderName}의 도시 ${existingCities + 1}`;
+
                  newCities.push({
                      id: `c-${Math.random()}`,
                      ownerId: player.id,
-                     name: `${player.leaderName}의 도시`,
+                     name: cityName,
                      q: unit.q, r: unit.r,
                      health: 200, maxHealth: 200,
                      production: 0, food: 0, population: 1,
@@ -685,8 +806,11 @@ function calculateAiMoves(gameState: GameState) {
                  removedUnits.push(unit.id);
                  getNeighbors(unit.q, unit.r).forEach(n => {
                     const t = gameState.tiles.find(tile => tile.q === n.q && tile.r === n.r);
-                    if (t && !t.ownerId) t.ownerId = player.id;
+                    if (t && !t.ownerId) newTileOwners.push({ id: t.id, ownerId: player.id });
                  });
+                 // Own the center tile too
+                 const centerT = gameState.tiles.find(t => t.q === unit.q && t.r === unit.r);
+                 if (centerT) newTileOwners.push({ id: centerT.id, ownerId: player.id });
               }
           }
       });
@@ -695,7 +819,8 @@ function calculateAiMoves(gameState: GameState) {
   return { 
       updatedUnits: updatedUnits.filter(u => !removedUnits.includes(u.id)), 
       updatedCities, 
-      newCities 
+      newCities,
+      newTileOwners
   };
 }
 
@@ -749,7 +874,6 @@ export const updateVisibility = (tiles: Tile[], units: Unit[], playerId: string,
 };
 
 export function findPath(start: Coordinates, end: Coordinates, units: Unit[], cities: City[], tiles: Tile[], movingUnit: Unit): Coordinates[] | null {
-  // Simple A*
   const openSet: { q: number; r: number; cost: number; est: number; parent: any }[] = [];
   const closedSet = new Set<string>();
 

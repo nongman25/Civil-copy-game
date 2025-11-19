@@ -88,10 +88,49 @@ export const useGameEngine = () => {
     return { humanSettler: units.find(u => u.ownerId === human.id && u.type === UnitType.SETTLER) };
   };
 
+  const deselectAll = () => {
+      if (!gameState) return;
+      setGameState({ ...gameState, selectedUnitId: null, selectedCityId: null, selectedTileId: null });
+  };
+
   const handlePurchase = (item: UnitType | BuildingType) => {
       if (!gameState || !gameState.selectedCityId) return;
       const newState = purchaseItem(gameState, gameState.selectedCityId, item);
       setGameState(newState);
+  };
+
+  const handleCityRename = (cityId: string, newName: string) => {
+      if (!gameState) return;
+      const updatedCities = gameState.cities.map(c => c.id === cityId ? { ...c, name: newName } : c);
+      setGameState({ ...gameState, cities: updatedCities });
+  };
+
+  const handleUnitClick = (unit: Unit) => {
+    if (!gameState || gameState.gameOver) return;
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer.type !== PlayerType.HUMAN) return;
+
+    // Check for units stacking or visually adjacent
+    const unitsAtTile = gameState.units.filter(u => 
+        u.q === unit.q && u.r === unit.r && 
+        gameState.tiles.find(t => t.q === u.q && t.r === u.r)?.isVisible
+    );
+
+    let targetUnit = unit;
+
+    // Cycle logic: If current selected unit is at this tile, pick the next one
+    if (gameState.selectedUnitId) {
+        const currentSelected = gameState.units.find(u => u.id === gameState.selectedUnitId);
+        if (currentSelected && currentSelected.q === unit.q && currentSelected.r === unit.r) {
+            const currentIndex = unitsAtTile.findIndex(u => u.id === currentSelected.id);
+            if (currentIndex !== -1 && unitsAtTile.length > 1) {
+                const nextIndex = (currentIndex + 1) % unitsAtTile.length;
+                targetUnit = unitsAtTile[nextIndex];
+            }
+        }
+    }
+
+    setGameState(prev => ({ ...prev!, selectedUnitId: targetUnit.id, selectedCityId: null, selectedTileId: null }));
   };
 
   const handleTileClick = (tile: Tile) => {
@@ -99,86 +138,72 @@ export const useGameEngine = () => {
       const currentPlayer = gameState.players[gameState.currentPlayerIndex];
       if (currentPlayer.type !== PlayerType.HUMAN) return;
 
-      // 1. City Selection
+      // 0. Citizen Assignment Logic (If a city is selected)
       if (gameState.selectedCityId) {
           const city = gameState.cities.find(c => c.id === gameState.selectedCityId);
           if (city && city.ownerId === currentPlayer.id) {
-              const dist = getDistance(city, tile);
-              if (dist <= 3 && tile.ownerId === city.ownerId) {
-                  if (city.q === tile.q && city.r === tile.r) {
-                      setGameState(prev => ({ ...prev!, selectedTileId: tile.id }));
-                      return;
-                  }
+              // Check if tile is ownable by city (distance <= 3) and owned by player
+              if (tile.ownerId === currentPlayer.id && getDistance(city, tile) <= 3) {
+                  // Prevent working center tile (it's free)
+                  if (city.q === tile.q && city.r === tile.r) return;
+
                   const isWorked = city.workedTiles.some(wt => wt.q === tile.q && wt.r === tile.r);
+                  let newWorked = [...city.workedTiles];
+                  
                   if (isWorked) {
-                      const newWorked = city.workedTiles.filter(wt => !(wt.q === tile.q && wt.r === tile.r));
-                      const updatedCities = gameState.cities.map(c => c.id === city.id ? { ...c, workedTiles: newWorked } : c);
-                      setGameState(prev => ({ ...prev!, cities: updatedCities, selectedTileId: tile.id }));
+                      newWorked = newWorked.filter(wt => wt.q !== tile.q || wt.r !== tile.r);
                   } else {
-                      if (city.workedTiles.length < city.population) {
-                          const newWorked = [...city.workedTiles, { q: tile.q, r: tile.r }];
-                          const updatedCities = gameState.cities.map(c => c.id === city.id ? { ...c, workedTiles: newWorked } : c);
-                          setGameState(prev => ({ ...prev!, cities: updatedCities, selectedTileId: tile.id }));
+                      if (newWorked.length < city.population) {
+                          newWorked.push({ q: tile.q, r: tile.r });
                       } else {
-                          addMessage("시민 부족 (인구 증가 필요)", "System");
+                          addMessage("배치 가능한 시민이 없습니다.", "System");
+                          return; 
                       }
                   }
-                  return;
+                  
+                  const updatedCities = gameState.cities.map(c => c.id === city.id ? { ...c, workedTiles: newWorked } : c);
+                  setGameState(prev => ({ ...prev!, cities: updatedCities }));
+                  return; // Stay on city view
               }
           }
       }
 
-      // 2. Unit Actions
+      // 1. Unit Move/Action Handling (if a unit is already selected)
       if (gameState.selectedUnitId) {
           const unit = gameState.units.find(u => u.id === gameState.selectedUnitId);
           if (unit && unit.ownerId === currentPlayer.id) {
-              if (unit.q === tile.q && unit.r === tile.r) {
-                  // Click self
-              } else {
-                  const targetUnit = gameState.units.find(u => u.q === tile.q && u.r === tile.r && u.ownerId !== currentPlayer.id);
-                  
-                  if (targetUnit) {
-                      if (getDistance(unit, targetUnit) <= unit.attackRange && unit.movesLeft > 0) {
-                          if (currentPlayer.diplomacy[targetUnit.ownerId]?.status === 'PEACE') {
-                              setConfirmWar({ attacker: unit, defender: targetUnit });
-                          } else {
-                              handleCombat(unit, targetUnit);
-                          }
-                          return;
-                      }
-                  }
-                  
-                  if (!targetUnit || (targetUnit && UNIT_INFO[targetUnit.type].strength === 0)) { 
-                      const path = findPath(unit, tile, gameState.units, gameState.cities, gameState.tiles, unit);
-                      if (path && path.length > 0) {
-                          executeMovePath(unit, path);
-                          return;
-                      }
+              // Check for attack
+              const targetUnit = gameState.units.find(u => u.q === tile.q && u.r === tile.r && u.ownerId !== currentPlayer.id);
+              if (targetUnit && getDistance(unit, targetUnit) <= unit.attackRange && unit.movesLeft > 0) {
+                   if (currentPlayer.diplomacy[targetUnit.ownerId]?.status === 'PEACE') {
+                       setConfirmWar({ attacker: unit, defender: targetUnit });
+                   } else {
+                       handleCombat(unit, targetUnit);
+                   }
+                   return;
+              }
+
+              // Check for Move
+              if (!targetUnit || (targetUnit && UNIT_INFO[targetUnit.type].strength === 0)) {
+                  if (canMoveTo(unit, tile, gameState.units, gameState.cities, gameState.tiles)) {
+                    const path = findPath(unit, tile, gameState.units, gameState.cities, gameState.tiles, unit);
+                    if (path && path.length > 0) {
+                        executeMovePath(unit, path);
+                        return;
+                    }
                   }
               }
           }
       }
 
-      // 3. Selection Logic (Cycling)
-      const unitsOnTile = gameState.units.filter(u => u.q === tile.q && u.r === tile.r && u.ownerId === currentPlayer.id);
-      if (unitsOnTile.length > 0) {
-          if (gameState.selectedUnitId && unitsOnTile.some(u => u.id === gameState.selectedUnitId)) {
-              const currentIndex = unitsOnTile.findIndex(u => u.id === gameState.selectedUnitId);
-              const nextIndex = (currentIndex + 1) % unitsOnTile.length;
-              const nextUnit = unitsOnTile[nextIndex];
-              setGameState(prev => ({ ...prev!, selectedUnitId: nextUnit.id, selectedCityId: null, selectedTileId: tile.id }));
-          } else {
-              setGameState(prev => ({ ...prev!, selectedUnitId: unitsOnTile[0].id, selectedCityId: null, selectedTileId: tile.id }));
-          }
-          return;
-      }
-      
-      const cityOnTile = gameState.cities.find(c => c.q === tile.q && c.r === tile.r);
-      if (cityOnTile && cityOnTile.ownerId === currentPlayer.id) {
-          setGameState(prev => ({ ...prev!, selectedCityId: cityOnTile.id, selectedUnitId: null, selectedTileId: tile.id }));
-          return;
+      // 2. City Selection
+      const city = gameState.cities.find(c => c.q === tile.q && c.r === tile.r);
+      if (city && city.ownerId === currentPlayer.id) {
+           setGameState(prev => ({ ...prev!, selectedCityId: city.id, selectedUnitId: null, selectedTileId: null }));
+           return;
       }
 
+      // 3. Tile Info Selection (Default fallback)
       setGameState(prev => ({ ...prev!, selectedTileId: tile.id, selectedCityId: null, selectedUnitId: null }));
   };
 
@@ -190,6 +215,6 @@ export const useGameEngine = () => {
 
   return {
       gameState, setGameState, phase, confirmWar, setConfirmWar,
-      startGame, handleTileClick, nextTurn, handleCityCombat, handleCombat, onFoundCity, handleUnitAction, handlePurchase, addMessage
+      startGame, handleTileClick, handleUnitClick, deselectAll, nextTurn, handleCityCombat, handleCombat, onFoundCity, handleUnitAction, handlePurchase, addMessage, handleCityRename
   };
 };

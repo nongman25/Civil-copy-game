@@ -16,7 +16,7 @@ interface GameControlsProps {
   onTogglePolicy: () => void;
   onZoom: (direction: 'IN' | 'OUT') => void;
   onOpenDiplomacy: () => void;
-  onOpenPolicies: () => void; // New
+  onOpenPolicies: () => void;
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ 
@@ -41,6 +41,10 @@ const GameControls: React.FC<GameControlsProps> = ({
   const currentTech = TECH_TREE.find(t => t.id === humanPlayer.currentTechId);
   const currentCivic = CIVICS_TREE.find(c => c.id === humanPlayer.currentCivicId);
   const unitOwner = selectedUnit ? gameState.players.find(p => p.id === selectedUnit.ownerId) : null;
+
+  // Calculate Progress text
+  const techProgressText = currentTech ? `${Math.floor(humanPlayer.science)} / ${currentTech.cost} (${Math.ceil((currentTech.cost - humanPlayer.science) / (humanPlayer.scienceYield || 1))} T)` : "연구 선택";
+  const civicProgressText = currentCivic ? `${Math.floor(humanPlayer.culture)} / ${currentCivic.cost} (${Math.ceil((currentCivic.cost - humanPlayer.culture) / (humanPlayer.cultureYield || 1))} T)` : "제도 선택";
 
   return (
     <>
@@ -70,7 +74,8 @@ const GameControls: React.FC<GameControlsProps> = ({
                 <span className="text-2xl drop-shadow-md">🧪</span>
                 <div className="flex flex-col leading-none text-left">
                     <span className="text-[10px] text-blue-400 font-bold uppercase">Science +{humanPlayer.scienceYield}/t</span>
-                    <span className="font-mono text-sm truncate w-24 font-medium">{currentTech ? currentTech.name : "연구 선택"}</span>
+                    <span className="font-mono text-sm truncate w-28 font-medium">{currentTech ? currentTech.name : "연구 선택"}</span>
+                    <span className="text-[10px] text-slate-400">{techProgressText}</span>
                 </div>
              </button>
 
@@ -78,7 +83,8 @@ const GameControls: React.FC<GameControlsProps> = ({
                 <span className="text-2xl drop-shadow-md">🎭</span>
                 <div className="flex flex-col leading-none text-left">
                     <span className="text-[10px] text-purple-400 font-bold uppercase">Culture +{humanPlayer.cultureYield}/t</span>
-                    <span className="font-mono text-sm truncate w-24 font-medium">{currentCivic ? currentCivic.name : "제도 선택"}</span>
+                    <span className="font-mono text-sm truncate w-28 font-medium">{currentCivic ? currentCivic.name : "제도 선택"}</span>
+                    <span className="text-[10px] text-slate-400">{civicProgressText}</span>
                 </div>
              </button>
           </div>

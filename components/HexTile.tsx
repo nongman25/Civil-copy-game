@@ -12,10 +12,11 @@ interface HexTileProps {
   isBorder?: string;
   isWorked?: boolean;
   player: Player; 
+  ownerColor?: string;
   onClick: (tile: Tile) => void;
 }
 
-const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, isBorder, isWorked, player, onClick }) => {
+const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, isBorder, isWorked, player, ownerColor, onClick }) => {
   const { x, y } = axialToPixel(tile.q, tile.r);
   
   if (!tile.isDiscovered) {
@@ -66,6 +67,11 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
         strokeOpacity={isSelected || isInRange ? 1 : 0.1}
         className={`${isSelected ? 'filter drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]' : 'hover:brightness-110'}`}
       />
+
+      {/* Owner Territory Overlay */}
+      {ownerColor && tile.isVisible && (
+          <polygon points={topPoints} fill={ownerColor} opacity="0.25" pointerEvents="none" style={{ mixBlendMode: 'hard-light' }} />
+      )}
       
       {/* Hill Overlay (Texture) */}
       {tile.isHill && (
@@ -75,7 +81,7 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
       {/* Texture Overlay */}
       <polygon points={topPoints} fill="transparent" filter="url(#noise)" opacity="0.15" pointerEvents="none" />
 
-      {/* Rivers - Rendered ON TOP of terrain, thicker, cleaner */}
+      {/* Rivers */}
       {tile.rivers && tile.isVisible && (
           <g transform={`translate(0, ${TOP_Y_OFFSET})`} pointerEvents="none" style={{ mixBlendMode: 'normal' }}>
               {tile.rivers[0] && <line x1={p[5].x} y1={p[5].y} x2={p[0].x} y2={p[0].y} stroke="#22d3ee" strokeWidth="6" strokeLinecap="round" className="filter drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]" />} 
@@ -92,14 +98,14 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
           <text x={HEX_WIDTH/2} y={HEX_HEIGHT/2 + TOP_Y_OFFSET} textAnchor="middle" fontSize="20" opacity="0.3" fill="white" pointerEvents="none">≈</text>
       )}
 
-      {/* Border (Solid, Pulsing) */}
-      {(isBorder || tile.ownerId) && tile.isVisible && (
+      {/* Border (Thicker line) */}
+      {(isBorder || ownerColor) && tile.isVisible && (
          <polygon 
             points={topPoints} 
             fill="none" 
-            stroke={isBorder || (tile.ownerId === player.id ? player.color : undefined)} 
+            stroke={isBorder || ownerColor} 
             strokeWidth="4" 
-            className="animate-pulse opacity-80"
+            className="opacity-90"
             pointerEvents="none"
          />
       )}
@@ -112,7 +118,7 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
          </g>
       )}
       
-      {/* Resource & Improvement Props */}
+      {/* Props */}
       <g transform={`translate(${HEX_WIDTH/2}, ${HEX_HEIGHT/2 + TOP_Y_OFFSET})`} pointerEvents="none">
           {tile.terrain === TerrainType.MOUNTAIN && (
              <path d="M -20 10 L 0 -25 L 20 10 Z M -10 15 L 5 -15 L 15 15 Z" fill="#64748b" stroke="#334155" strokeWidth="1" className="drop-shadow-lg" />
@@ -124,23 +130,17 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
                   <path d="M -12 10 L 0 -18 L 12 10 Z" fill="#16a34a" stroke="#064e3b" transform="translate(5, 0)" />
               </g>
           )}
-          
-          {/* Tribal Village */}
           {tile.hasVillage && (
               <g transform="translate(0, -5)">
                   <circle r="12" fill="#eab308" stroke="#854d0e" strokeWidth="2" className="animate-pulse" />
                   <text y="4" textAnchor="middle" fontSize="14">⛺</text>
               </g>
           )}
-          
-          {/* Improvements */}
           {tile.improvement === 'FARM' && <text y={5} textAnchor="middle" fontSize="18">🏡</text>}
           {tile.improvement === 'MINE' && <text y={5} textAnchor="middle" fontSize="18">⚒️</text>}
           {tile.improvement === 'PASTURE' && <text y={5} textAnchor="middle" fontSize="18">🐄</text>}
           {tile.improvement === 'PLANTATION' && <text y={5} textAnchor="middle" fontSize="18">🍌</text>}
           {tile.improvement === 'OIL_WELL' && <text y={5} textAnchor="middle" fontSize="18">🛢️</text>}
-          
-          {/* Resources */}
           {!tile.improvement && showResource && (
              <g>
                {tile.resource === 'IRON' && <text y={-5} textAnchor="middle" fontSize="16">⛏️</text>}
@@ -171,7 +171,7 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
                     <rect x={HEX_WIDTH/2 - 20} y={-20} width="40" height="4" fill="#333" />
                     <rect x={HEX_WIDTH/2 - 20} y={-20} width={(city.health/city.maxHealth)*40} height="4" fill={city.health < 50 ? 'red' : 'green'} />
                     
-                    <rect x={HEX_WIDTH/2 - 40} y={-16} width="80" height="22" rx="4" fill={isBorder || "#333"} stroke="white" strokeWidth="1.5" className="shadow-lg"/>
+                    <rect x={HEX_WIDTH/2 - 40} y={-16} width="80" height="22" rx="4" fill={isBorder || ownerColor || "#333"} stroke="white" strokeWidth="1.5" className="shadow-lg"/>
                     <text x={HEX_WIDTH/2} y={0} textAnchor="middle" fontSize="11" fill="white" fontWeight="bold" style={{textShadow: '0px 1px 2px black'}}>
                         {city.name} ({city.population})
                     </text>

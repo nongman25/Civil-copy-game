@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
 import { UnitType, BuildingType, DiplomaticRelation } from './types';
 import { axialToPixel, getDistance } from './utils/gameUtils';
@@ -16,7 +16,7 @@ import { getAdvisorTip } from './services/geminiService';
 const App: React.FC = () => {
   const { 
       gameState, setGameState, phase, confirmWar, setConfirmWar, 
-      startGame, handleTileClick, nextTurn, handleCityCombat, handleCombat, onFoundCity, handleUnitAction, handlePurchase, addMessage 
+      startGame, handleTileClick, handleUnitClick, deselectAll, nextTurn, handleCityCombat, handleCombat, onFoundCity, handleUnitAction, handlePurchase, addMessage, handleCityRename
   } = useGameEngine();
 
   const [camera, setCamera] = useState({ x: 0, y: 0 });
@@ -26,6 +26,20 @@ const App: React.FC = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showDiplomacy, setShowDiplomacy] = useState(false);
   const [showPolicies, setShowPolicies] = useState(false);
+
+  // Escape key handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        deselectAll();
+        setShowDiplomacy(false);
+        setShowPolicies(false);
+        setConfirmWar(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deselectAll]);
 
   const handleStartGame = (settings: any) => {
       const { humanSettler } = startGame(settings);
@@ -146,6 +160,7 @@ const App: React.FC = () => {
                    player={gameState.players[0]}
                    city={gameState.cities.find(c => c.q === tile.q && c.r === tile.r)} 
                    isBorder={tile.ownerId ? gameState.players.find(p => p.id === tile.ownerId)?.color : undefined}
+                   ownerColor={tile.ownerId ? gameState.players.find(p => p.id === tile.ownerId)?.color : undefined}
                    isSelected={gameState.selectedCityId === gameState.cities.find(c => c.q === tile.q && c.r === tile.r)?.id && !!gameState.cities.find(c => c.q === tile.q && c.r === tile.r)}
                    isInRange={gameState.selectedUnitId ? getDistance(gameState.units.find(u => u.id === gameState.selectedUnitId)!, tile) <= gameState.units.find(u => u.id === gameState.selectedUnitId)!.attackRange : false} 
                    isWorked={gameState.selectedCityId ? gameState.cities.find(c => c.id === gameState.selectedCityId)?.workedTiles.some(wt => wt.q === tile.q && wt.r === tile.r) : false}
@@ -156,7 +171,13 @@ const App: React.FC = () => {
          <div className="absolute top-0 left-0 w-0 h-0 pointer-events-none" style={{ zIndex: 50 }}>
             {[...gameState.units].sort((a, b) => a.r - b.r || a.q - b.q).map(unit => (
                  gameState.tiles.find(t => t.q === unit.q && t.r === unit.r)?.isVisible &&
-                 <UnitActor key={unit.id} unit={unit} owner={gameState.players.find(p => p.id === unit.ownerId)} isSelected={gameState.selectedUnitId === unit.id} onClick={(u) => handleTileClick(gameState.tiles.find(t => t.q === u.q && t.r === u.r)!)} />
+                 <UnitActor 
+                    key={unit.id} 
+                    unit={unit} 
+                    owner={gameState.players.find(p => p.id === unit.ownerId)} 
+                    isSelected={gameState.selectedUnitId === unit.id} 
+                    onClick={(u) => handleUnitClick(u)} 
+                 />
             ))}
          </div>
       </div>
@@ -175,7 +196,7 @@ const App: React.FC = () => {
              setGameState({...gameState});
          }} 
          onTogglePolicy={() => {
-             // Legacy toggle kept for ResearchPanel compatibility, mostly handled by PolicyPanel now
+             // Legacy toggle kept for ResearchPanel compatibility
          }} 
          onZoom={(d) => setZoom(z => d === 'IN' ? z + 0.2 : z - 0.2)}
          onOpenDiplomacy={() => setShowDiplomacy(true)}
@@ -209,7 +230,6 @@ const App: React.FC = () => {
                  const newPolicies = p.activePolicies.includes(id) 
                     ? p.activePolicies.filter(p => p !== id)
                     : [...p.activePolicies, id];
-                 // Simple check: in real game, check slots
                  const updatedPlayers = gameState.players.map(pl => pl.id === p.id ? { ...pl, activePolicies: newPolicies } : pl);
                  setGameState({...gameState, players: updatedPlayers});
              }}
@@ -237,6 +257,7 @@ const App: React.FC = () => {
             onClose={() => setGameState(prev => ({...prev!, selectedCityId: null}))} 
             onProduce={(t) => setGameState(prev => ({...prev!, cities: prev!.cities.map(c => c.id === prev!.selectedCityId ? {...c, currentProductionTarget: t} : c)}))}
             onPurchase={handlePurchase}
+            onRename={handleCityRename}
           />
       )}
     </div>

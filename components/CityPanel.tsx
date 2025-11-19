@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { City, UnitType, BuildingType, Player, Tile } from '../types';
 import { UNIT_INFO, BUILDING_INFO } from '../constants';
 import { getTileYields } from '../utils/gameUtils';
@@ -11,9 +11,26 @@ interface CityPanelProps {
   onClose: () => void;
   onProduce: (item: UnitType | BuildingType) => void;
   onPurchase: (item: UnitType | BuildingType) => void; 
+  onRename?: (cityId: string, newName: string) => void;
 }
 
-const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onProduce, onPurchase }) => {
+const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onProduce, onPurchase, onRename }) => {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(city.name);
+
+  useEffect(() => {
+      setEditName(city.name);
+  }, [city.name]);
+
+  const handleNameSubmit = () => {
+      setIsEditingName(false);
+      if (onRename && editName.trim() !== "") {
+          onRename(city.id, editName);
+      } else {
+          setEditName(city.name);
+      }
+  };
+
   const isUnit = (item: string) => item in UNIT_INFO;
   
   const currentProdName = city.currentProductionTarget 
@@ -87,13 +104,30 @@ const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onP
   return (
     <div className="fixed right-0 top-20 bottom-0 w-[450px] bg-slate-900/95 border-l border-amber-600/50 backdrop-blur-lg shadow-2xl p-6 text-slate-100 transform transition-transform animate-slide-in-right z-20 flex flex-col">
       <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-4">
-        <div>
-            <h2 className="text-2xl font-bold text-amber-500 flex items-center gap-2">
-                {city.maxHealth > 200 ? '🏰' : '🏠'} {city.name} <span className="text-sm bg-slate-800 px-2 py-0.5 rounded text-white border border-slate-600">{city.population}</span>
-            </h2>
-            <div className="text-xs text-slate-400">체력: {city.health}/{city.maxHealth} | <span className="text-green-400">시민 배치 가능: {city.population - city.workedTiles.length}</span></div>
+        <div className="flex-1">
+            {isEditingName ? (
+                <input 
+                    type="text" 
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onBlur={handleNameSubmit}
+                    onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
+                    autoFocus
+                    className="text-2xl font-bold bg-slate-800 text-amber-500 border border-amber-500 rounded px-2 py-1 w-full focus:outline-none"
+                />
+            ) : (
+                <h2 
+                    className="text-2xl font-bold text-amber-500 flex items-center gap-2 cursor-pointer hover:text-amber-400"
+                    onClick={() => setIsEditingName(true)}
+                    title="이름 수정하려면 클릭하세요"
+                >
+                    {city.maxHealth > 200 ? '🏰' : '🏠'} {city.name} <span className="text-sm bg-slate-800 px-2 py-0.5 rounded text-white border border-slate-600">{city.population}</span>
+                    <span className="text-xs opacity-50">✏️</span>
+                </h2>
+            )}
+            <div className="text-xs text-slate-400 mt-1">체력: {city.health}/{city.maxHealth} | <span className="text-green-400">시민 배치 가능: {city.population - city.workedTiles.length}</span></div>
         </div>
-        <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl">&times;</button>
+        <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl ml-4">&times;</button>
       </div>
       
       <div className="text-xs text-blue-300 mb-4 bg-blue-900/20 p-2 rounded border border-blue-800">
