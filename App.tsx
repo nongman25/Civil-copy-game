@@ -10,6 +10,7 @@ import SetupScreen from './components/SetupScreen';
 import CityPanel from './components/CityPanel';
 import DiplomacyPanel from './components/DiplomacyPanel';
 import TileInfoPanel from './components/TileInfoPanel';
+import PolicyPanel from './components/PolicyPanel';
 import { getAdvisorTip } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -24,6 +25,7 @@ const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showDiplomacy, setShowDiplomacy] = useState(false);
+  const [showPolicies, setShowPolicies] = useState(false);
 
   const handleStartGame = (settings: any) => {
       const { humanSettler } = startGame(settings);
@@ -41,7 +43,6 @@ const App: React.FC = () => {
           const newPlayers = gameState.players.map(p => {
               if (p.id === attackerPlayer.id) {
                   const newDiplomacy = { ...p.diplomacy };
-                  // Ensure explicit type compatibility for status
                   newDiplomacy[targetUnit.ownerId] = { 
                       ...newDiplomacy[targetUnit.ownerId], 
                       status: 'WAR' as const, 
@@ -51,7 +52,6 @@ const App: React.FC = () => {
               }
               if (p.id === targetUnit.ownerId) {
                   const newDiplomacy = { ...p.diplomacy };
-                  // Ensure explicit type compatibility for status
                   newDiplomacy[attackerPlayer.id] = { 
                       ...newDiplomacy[attackerPlayer.id], 
                       status: 'WAR' as const, 
@@ -63,7 +63,7 @@ const App: React.FC = () => {
           });
           
           const updatedState = { ...gameState, players: newPlayers };
-          setGameState(updatedState); // Apply diplomatic change first
+          setGameState(updatedState); 
 
           if (targetUnit.strength === 0 && targetUnit.type === UnitType.WARRIOR) {
                const city = gameState.cities.find(c => c.q === targetUnit.q && c.r === targetUnit.r);
@@ -175,11 +175,11 @@ const App: React.FC = () => {
              setGameState({...gameState});
          }} 
          onTogglePolicy={() => {
-             const p = gameState.players[0];
-             p.activePolicies.borderExpansion = !p.activePolicies.borderExpansion;
-             setGameState({...gameState});
-         }} onZoom={(d) => setZoom(z => d === 'IN' ? z + 0.2 : z - 0.2)}
+             // Legacy toggle kept for ResearchPanel compatibility, mostly handled by PolicyPanel now
+         }} 
+         onZoom={(d) => setZoom(z => d === 'IN' ? z + 0.2 : z - 0.2)}
          onOpenDiplomacy={() => setShowDiplomacy(true)}
+         onOpenPolicies={() => setShowPolicies(true)}
       />
 
       {gameState.selectedTileId && !gameState.selectedUnitId && !gameState.selectedCityId && (
@@ -197,6 +197,22 @@ const App: React.FC = () => {
             onDeclareWar={(id) => handleDiplomacyAction('WAR', id)}
             onMakePeace={(id) => handleDiplomacyAction('PEACE', id)}
             onGift={(id, gold) => handleDiplomacyAction('GIFT', id)}
+          />
+      )}
+
+      {showPolicies && (
+          <PolicyPanel
+             player={gameState.players[0]}
+             onClose={() => setShowPolicies(false)}
+             onTogglePolicy={(id) => {
+                 const p = gameState.players[0];
+                 const newPolicies = p.activePolicies.includes(id) 
+                    ? p.activePolicies.filter(p => p !== id)
+                    : [...p.activePolicies, id];
+                 // Simple check: in real game, check slots
+                 const updatedPlayers = gameState.players.map(pl => pl.id === p.id ? { ...pl, activePolicies: newPolicies } : pl);
+                 setGameState({...gameState, players: updatedPlayers});
+             }}
           />
       )}
 

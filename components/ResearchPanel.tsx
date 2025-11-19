@@ -157,21 +157,6 @@ const ResearchPanel: React.FC<ResearchPanelProps> = ({ player, type, onClose, on
                 })}
             </div>
         </div>
-
-        {type === 'CULTURE' && (
-            <div className="p-4 bg-purple-900/20 border-t border-purple-500/30 backdrop-blur-sm flex justify-center shrink-0">
-                 <button 
-                        onClick={onTogglePolicy}
-                        className={`px-8 py-3 rounded-full font-bold transition-all transform hover:scale-105 border-2 ${
-                            player.activePolicies.borderExpansion 
-                            ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(147,51,234,0.5)]' 
-                            : 'bg-slate-800 border-slate-600 text-slate-500 hover:border-purple-500'
-                        }`}
-                    >
-                        {player.activePolicies.borderExpansion ? '정책: 국경 확장 가속 활성화됨' : '정책: 국경 확장 가속 비활성'}
-                    </button>
-            </div>
-        )}
     </div>
   );
 };

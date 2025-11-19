@@ -16,6 +16,7 @@ interface GameControlsProps {
   onTogglePolicy: () => void;
   onZoom: (direction: 'IN' | 'OUT') => void;
   onOpenDiplomacy: () => void;
+  onOpenPolicies: () => void; // New
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ 
@@ -29,7 +30,8 @@ const GameControls: React.FC<GameControlsProps> = ({
   onSelectResearch,
   onTogglePolicy,
   onZoom,
-  onOpenDiplomacy
+  onOpenDiplomacy,
+  onOpenPolicies
 }) => {
   const [showResearch, setShowResearch] = React.useState<'SCIENCE' | 'CULTURE' | null>(null);
 
@@ -86,6 +88,9 @@ const GameControls: React.FC<GameControlsProps> = ({
           </div>
 
           <div className="flex items-center gap-4">
+              <button onClick={onOpenPolicies} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg border border-slate-500">
+                 📜 정책
+              </button>
               <button onClick={onOpenDiplomacy} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg border border-slate-500">
                  🌐 외교
               </button>

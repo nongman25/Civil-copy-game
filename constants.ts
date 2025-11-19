@@ -1,5 +1,5 @@
 
-import { TerrainType, UnitType, BuildingType, Tech, Civic, TileYields } from "./types";
+import { TerrainType, UnitType, BuildingType, Tech, Civic, TileYields, Policy } from "./types";
 
 export const HEX_SIZE = 42; 
 export const HEX_WIDTH = Math.sqrt(3) * HEX_SIZE;
@@ -74,7 +74,7 @@ export const TERRAIN_YIELDS: Record<TerrainType, TileYields> = {
   [TerrainType.PLAINS]: { food: 1, production: 1, gold: 0, science: 0, culture: 0 },
   [TerrainType.GRASSLAND]: { food: 2, production: 0, gold: 0, science: 0, culture: 0 },
   [TerrainType.FOREST]: { food: 1, production: 2, gold: 0, science: 0, culture: 0 }, 
-  [TerrainType.MOUNTAIN]: { food: 0, production: 0, gold: 0, science: 1, culture: 0 }, 
+  [TerrainType.MOUNTAIN]: { food: 0, production: 0, gold: 0, science: 1, culture: 0 }, // Update: Mountain gives science
   [TerrainType.DESERT]: { food: 0, production: 0, gold: 0, science: 0, culture: 0 },
   [TerrainType.SNOW]: { food: 0, production: 0, gold: 0, science: 0, culture: 0 },
   [TerrainType.TUNDRA]: { food: 1, production: 0, gold: 0, science: 0, culture: 0 },
@@ -239,4 +239,47 @@ export const CIVICS_TREE: CivicNode[] = [
   { id: "SUFFRAGE", name: "참정권", description: "민주주의", cost: 1500, era: 5, prerequisites: ["IDEOLOGY"] },
   { id: "TOTALITARIANISM", name: "전체주의", description: "파시즘", cost: 1500, era: 5, prerequisites: ["IDEOLOGY"] },
   { id: "CLASS_STRUGGLE", name: "계급 투쟁", description: "공산주의", cost: 1500, era: 5, prerequisites: ["IDEOLOGY"] }
+];
+
+export const POLICY_CARDS: Policy[] = [
+    { id: "GOD_KING", name: "신왕", description: "수도에서 +1 신앙, +1 골드", type: "ECONOMIC", era: 0, requiresCivic: "CODE_OF_LAWS" },
+    { id: "URBAN_PLANNING", name: "도시 계획", description: "모든 도시 생산력 +1", type: "ECONOMIC", era: 0, requiresCivic: "CODE_OF_LAWS" },
+    { id: "DISCIPLINE", name: "규율", description: "야만인 상대 전투력 +5", type: "MILITARY", era: 0, requiresCivic: "CODE_OF_LAWS" },
+    { id: "SURVEY", name: "측량", description: "정찰병 경험치 2배", type: "MILITARY", era: 0, requiresCivic: "CODE_OF_LAWS" },
+    { id: "ILKUM", name: "일쿰", description: "건설자 생산력 +30%", type: "ECONOMIC", era: 0, requiresCivic: "CRAFTSMANSHIP" },
+    { id: "AGOGE", name: "아고게", description: "근접 및 원거리 유닛 생산력 +50%", type: "MILITARY", era: 0, requiresCivic: "CRAFTSMANSHIP" },
+    { id: "DIPLOMATIC_LEAGUE", name: "외교 연합", description: "첫 사절 파견 시 2명으로 계산", type: "DIPLOMATIC", era: 1, requiresCivic: "POLITICAL_PHILOSOPHY" },
+    { id: "CONSCRIPTION", name: "징집", description: "유닛 유지비 -1 골드", type: "MILITARY", era: 1, requiresCivic: "STATE_WORKFORCE" },
+    { id: "LAND_SURVEYORS", name: "토지 측량사", description: "타일 구매 비용 20% 감소", type: "ECONOMIC", era: 1, requiresCivic: "EARLY_EMPIRE" },
+    { id: "COLONIZATION", name: "식민지화", description: "개척자 생산력 +50%", type: "ECONOMIC", era: 1, requiresCivic: "EARLY_EMPIRE" },
+    { id: "STRATEGOS", name: "장군", description: "위대한 장군 점수 +2", type: "WILDCARD", era: 1, requiresCivic: "MILITARY_TRADITION" },
+    { id: "INSPIRATION", name: "영감", description: "위대한 과학자 점수 +2", type: "WILDCARD", era: 1, requiresCivic: "MYSTICISM" },
+    { id: "REVELATION", name: "계시", description: "위대한 선지자 점수 +2", type: "WILDCARD", era: 1, requiresCivic: "MYSTICISM" },
+    { id: "LITERARY_TRADITION", name: "문학적 전통", description: "위대한 작가 점수 +2", type: "WILDCARD", era: 1, requiresCivic: "DRAMA_POETRY" },
+    { id: "NAVIGATION", name: "항해", description: "해상 유닛 이동력 +1", type: "MILITARY", era: 2, requiresCivic: "NAVAL_TRADITION" },
+    { id: "TRADE_CONFEDERATION", name: "무역 연합", description: "문화 +1, 과학 +1 (교역로)", type: "ECONOMIC", era: 2, requiresCivic: "MERCENARIES" },
+    { id: "MERCHANT_CONFEDERATION", name: "상인 연합", description: "금 +2 (교역로)", type: "DIPLOMATIC", era: 2, requiresCivic: "GUILDS" },
+    { id: "AESTHETICS", name: "미학", description: "극장가 인접 보너스 +100%", type: "ECONOMIC", era: 2, requiresCivic: "MEDIEVAL_FAIRES" },
+    { id: "CRAFTSMEN", name: "장인", description: "산업구역 인접 보너스 +100%", type: "ECONOMIC", era: 2, requiresCivic: "GUILDS" },
+    { id: "TOWN_CHARTERS", name: "마을 헌장", description: "상업 중심지 인접 보너스 +100%", type: "ECONOMIC", era: 2, requiresCivic: "GUILDS" },
+    { id: "FEUDAL_CONTRACT", name: "봉건 계약", description: "근접 및 원거리 유닛 생산력 +50%", type: "MILITARY", era: 2, requiresCivic: "FEUDALISM" },
+    { id: "SERFDOM", name: "농노제", description: "새 건설자 행동력 +2", type: "ECONOMIC", era: 2, requiresCivic: "FEUDALISM" },
+    { id: "PUBLIC_WORKS", name: "공공 사업", description: "건설자 행동력 +2, 생산력 +30%", type: "ECONOMIC", era: 3, requiresCivic: "CIVIL_ENGINEERING" },
+    { id: "SKYSCRAPERS", name: "마천루", description: "불가사의 건설 생산력 +15%", type: "ECONOMIC", era: 3, requiresCivic: "CIVIL_ENGINEERING" },
+    { id: "GRAND_OPERA", name: "그랜드 오페라", description: "극장가 건물 문화 +100%", type: "ECONOMIC", era: 3, requiresCivic: "OPERA_BALLET" },
+    { id: "RATIONALISM", name: "합리주의", description: "캠퍼스 건물 과학 +100%", type: "ECONOMIC", era: 3, requiresCivic: "THE_ENLIGHTENMENT" },
+    { id: "FREE_MARKET", name: "자유 시장", description: "상업 중심지 건물 금 +100%", type: "ECONOMIC", era: 3, requiresCivic: "THE_ENLIGHTENMENT" },
+    { id: "LIBERALISM", name: "자유주의", description: "쾌적도 +1 (2개 이상의 특수지구)", type: "ECONOMIC", era: 3, requiresCivic: "THE_ENLIGHTENMENT" },
+    { id: "PROPAGANDA", name: "선전", description: "전쟁 피로도 25% 감소", type: "MILITARY", era: 4, requiresCivic: "MASS_MEDIA" },
+    { id: "LEVEE_EN_MASSE", name: "국민 개병", description: "유닛 유지비 -2 골드", type: "MILITARY", era: 4, requiresCivic: "MOBILIZATION" },
+    { id: "MARKET_ECONOMY", name: "시장 경제", description: "교역로당 +2 금, +2 문화, +1 과학", type: "ECONOMIC", era: 4, requiresCivic: "CAPITALISM" },
+    { id: "NEW_DEAL", name: "뉴딜 정책", description: "쾌적도 +2, 주거 +2, 금 -8", type: "ECONOMIC", era: 5, requiresCivic: "SUFFRAGE" },
+    { id: "FIVE_YEAR_PLAN", name: "5개년 계획", description: "캠퍼스/산업구역 인접 보너스 +100%", type: "ECONOMIC", era: 5, requiresCivic: "CLASS_STRUGGLE" },
+    { id: "MARTIAL_LAW", name: "계엄령", description: "전쟁 피로도 25% 감소", type: "MILITARY", era: 5, requiresCivic: "TOTALITARIANISM" },
+    { id: "ECOMMERCE", name: "전자 상거래", description: "교역로당 +5 생산, +10 금", type: "ECONOMIC", era: 5, requiresCivic: "GLOBALIZATION" },
+    { id: "ONLINE_COMMUNITIES", name: "온라인 커뮤니티", description: "관광 +50%", type: "ECONOMIC", era: 5, requiresCivic: "SOCIAL_MEDIA" },
+    { id: "COLLECTIVIZATION", name: "집단화", description: "농장 식량 +2, 주거 +2", type: "ECONOMIC", era: 5, requiresCivic: "CLASS_STRUGGLE" },
+    { id: "DEFENSE_OF_MOTHERLAND", name: "조국 수호", description: "자국 영토 전투력 +5", type: "MILITARY", era: 5, requiresCivic: "CLASS_STRUGGLE" },
+    { id: "MILITARY_RESEARCH", name: "군사 연구", description: "사관학교, 항구 과학 +2", type: "MILITARY", era: 4, requiresCivic: "URBANIZATION" },
+    { id: "INTERNATIONAL_WATERS", name: "국제 수역", description: "해상 유닛 생산력 +100%", type: "MILITARY", era: 4, requiresCivic: "COLD_WAR" }
 ];

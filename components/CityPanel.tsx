@@ -10,7 +10,7 @@ interface CityPanelProps {
   tiles: Tile[];
   onClose: () => void;
   onProduce: (item: UnitType | BuildingType) => void;
-  onPurchase: (item: UnitType | BuildingType) => void; // New prop
+  onPurchase: (item: UnitType | BuildingType) => void; 
 }
 
 const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onProduce, onPurchase }) => {
@@ -48,6 +48,10 @@ const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onP
       totalGold += centerYield.gold;
       totalScience += centerYield.science;
       totalCulture += centerYield.culture;
+      
+      // New Base Yields for City
+      totalScience += 1;
+      totalCulture += 1;
   }
 
   city.workedTiles.forEach(coord => {
@@ -61,8 +65,6 @@ const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onP
           totalGold += y.gold;
           totalScience += y.science;
           totalCulture += y.culture;
-          
-          if (tile.rivers && tile.rivers.some(r => r)) totalGold += 1;
       }
   });
   
@@ -74,6 +76,10 @@ const CityPanel: React.FC<CityPanelProps> = ({ city, player, tiles, onClose, onP
       if (b.yields.science) totalScience += b.yields.science;
       if (b.yields.culture) totalCulture += b.yields.culture;
   });
+
+  // Policy Global Effects
+  if (player.activePolicies.includes("URBAN_PLANNING")) totalProd += 1;
+  if (player.activePolicies.includes("GOD_KING")) { totalGold += 1; }
 
   const foodConsumed = city.population * 2;
   const surplusFood = totalFood - foodConsumed;

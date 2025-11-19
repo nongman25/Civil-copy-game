@@ -24,8 +24,10 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
 
   const opacity = tile.isVisible ? 1 : 0.5;
   
-  const DEPTH = tile.terrain === TerrainType.MOUNTAIN ? 30 : tile.terrain === TerrainType.WATER ? 5 : 15;
-  const TOP_Y_OFFSET = -12; 
+  // Hill height offset
+  const HILL_OFFSET = tile.isHill ? -8 : 0;
+  const DEPTH = tile.terrain === TerrainType.MOUNTAIN ? 30 : tile.terrain === TerrainType.WATER ? 5 : 15 + (tile.isHill ? 5 : 0);
+  const TOP_Y_OFFSET = -12 + HILL_OFFSET; 
 
   const p = [
       {x: HEX_WIDTH/2, y: 0},
@@ -65,18 +67,23 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
         className={`${isSelected ? 'filter drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]' : 'hover:brightness-110'}`}
       />
       
+      {/* Hill Overlay (Texture) */}
+      {tile.isHill && (
+          <polygon points={topPoints} fill="black" opacity="0.15" pointerEvents="none" />
+      )}
+      
       {/* Texture Overlay */}
       <polygon points={topPoints} fill="transparent" filter="url(#noise)" opacity="0.15" pointerEvents="none" />
 
-      {/* Rivers - Enhanced Visibility - Rendered AFTER Terrain */}
+      {/* Rivers - Rendered ON TOP of terrain, thicker, cleaner */}
       {tile.rivers && tile.isVisible && (
           <g transform={`translate(0, ${TOP_Y_OFFSET})`} pointerEvents="none" style={{ mixBlendMode: 'normal' }}>
-              {tile.rivers[0] && <line x1={p[5].x} y1={p[5].y} x2={p[0].x} y2={p[0].y} stroke="#22d3ee" strokeWidth="8" strokeLinecap="round" className="filter drop-shadow-[0_0_3px_rgba(0,0,0,0.5)]" />} 
-              {tile.rivers[1] && <line x1={p[0].x} y1={p[0].y} x2={p[1].x} y2={p[1].y} stroke="#22d3ee" strokeWidth="8" strokeLinecap="round" className="filter drop-shadow-[0_0_3px_rgba(0,0,0,0.5)]" />} 
-              {tile.rivers[2] && <line x1={p[1].x} y1={p[1].y} x2={p[2].x} y2={p[2].y} stroke="#22d3ee" strokeWidth="8" strokeLinecap="round" className="filter drop-shadow-[0_0_3px_rgba(0,0,0,0.5)]" />} 
-              {tile.rivers[3] && <line x1={p[2].x} y1={p[2].y} x2={p[3].x} y2={p[3].y} stroke="#22d3ee" strokeWidth="8" strokeLinecap="round" className="filter drop-shadow-[0_0_3px_rgba(0,0,0,0.5)]" />} 
-              {tile.rivers[4] && <line x1={p[3].x} y1={p[3].y} x2={p[4].x} y2={p[4].y} stroke="#22d3ee" strokeWidth="8" strokeLinecap="round" className="filter drop-shadow-[0_0_3px_rgba(0,0,0,0.5)]" />} 
-              {tile.rivers[5] && <line x1={p[4].x} y1={p[4].y} x2={p[5].x} y2={p[5].y} stroke="#22d3ee" strokeWidth="8" strokeLinecap="round" className="filter drop-shadow-[0_0_3px_rgba(0,0,0,0.5)]" />} 
+              {tile.rivers[0] && <line x1={p[5].x} y1={p[5].y} x2={p[0].x} y2={p[0].y} stroke="#22d3ee" strokeWidth="6" strokeLinecap="round" className="filter drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]" />} 
+              {tile.rivers[1] && <line x1={p[0].x} y1={p[0].y} x2={p[1].x} y2={p[1].y} stroke="#22d3ee" strokeWidth="6" strokeLinecap="round" className="filter drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]" />} 
+              {tile.rivers[2] && <line x1={p[1].x} y1={p[1].y} x2={p[2].x} y2={p[2].y} stroke="#22d3ee" strokeWidth="6" strokeLinecap="round" className="filter drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]" />} 
+              {tile.rivers[3] && <line x1={p[2].x} y1={p[2].y} x2={p[3].x} y2={p[3].y} stroke="#22d3ee" strokeWidth="6" strokeLinecap="round" className="filter drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]" />} 
+              {tile.rivers[4] && <line x1={p[3].x} y1={p[3].y} x2={p[4].x} y2={p[4].y} stroke="#22d3ee" strokeWidth="6" strokeLinecap="round" className="filter drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]" />} 
+              {tile.rivers[5] && <line x1={p[4].x} y1={p[4].y} x2={p[5].x} y2={p[5].y} stroke="#22d3ee" strokeWidth="6" strokeLinecap="round" className="filter drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]" />} 
           </g>
       )}
 
@@ -85,15 +92,14 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
           <text x={HEX_WIDTH/2} y={HEX_HEIGHT/2 + TOP_Y_OFFSET} textAnchor="middle" fontSize="20" opacity="0.3" fill="white" pointerEvents="none">≈</text>
       )}
 
-      {/* Border */}
+      {/* Border (Solid, Pulsing) */}
       {(isBorder || tile.ownerId) && tile.isVisible && (
          <polygon 
             points={topPoints} 
             fill="none" 
             stroke={isBorder || (tile.ownerId === player.id ? player.color : undefined)} 
-            strokeWidth="3" 
-            strokeDasharray={isBorder ? "4 2" : "none"}
-            opacity="0.8"
+            strokeWidth="4" 
+            className="animate-pulse opacity-80"
             pointerEvents="none"
          />
       )}
@@ -116,6 +122,14 @@ const HexTile: React.FC<HexTileProps> = ({ tile, city, isSelected, isInRange, is
                   <path d="M -15 5 L -15 -10 L -5 -10 L -5 -20 L 5 -20 L 5 -10 L 15 -10 L 15 5 Z" fill="#14532d" opacity="0.4" transform="translate(2,2)" />
                   <path d="M -10 5 L 0 -15 L 10 5 Z" fill="#15803d" stroke="#064e3b" transform="translate(-10, -5)" />
                   <path d="M -12 10 L 0 -18 L 12 10 Z" fill="#16a34a" stroke="#064e3b" transform="translate(5, 0)" />
+              </g>
+          )}
+          
+          {/* Tribal Village */}
+          {tile.hasVillage && (
+              <g transform="translate(0, -5)">
+                  <circle r="12" fill="#eab308" stroke="#854d0e" strokeWidth="2" className="animate-pulse" />
+                  <text y="4" textAnchor="middle" fontSize="14">⛺</text>
               </g>
           )}
           

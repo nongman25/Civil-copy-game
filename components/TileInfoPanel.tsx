@@ -13,8 +13,8 @@ const TileInfoPanel: React.FC<TileInfoPanelProps> = ({ tile, player }) => {
   if (!tile || !tile.isDiscovered) return null;
 
   const yields = getTileYields(tile, player);
-  const defenseMod = tile.terrain === TerrainType.FOREST || tile.terrain === TerrainType.MOUNTAIN ? 25 : 0;
-  const moveCost = tile.terrain === TerrainType.MOUNTAIN ? 'X' : tile.terrain === TerrainType.FOREST ? 2 : 1;
+  const defenseMod = tile.terrain === TerrainType.FOREST || tile.terrain === TerrainType.MOUNTAIN || tile.isHill ? 25 : 0;
+  const moveCost = tile.terrain === TerrainType.MOUNTAIN ? 'X' : tile.terrain === TerrainType.FOREST || tile.isHill ? 2 : 1;
 
   return (
     <div className="fixed bottom-4 left-4 bg-slate-900/90 border border-slate-600 p-4 rounded-xl shadow-2xl backdrop-blur-md z-40 w-64 animate-fade-in text-sm select-none pointer-events-none">
@@ -22,8 +22,14 @@ const TileInfoPanel: React.FC<TileInfoPanelProps> = ({ tile, player }) => {
       
       <div className="flex justify-between items-center mb-2">
         <span className="text-slate-300">지형:</span>
-        <span className="font-bold text-white">{tile.terrain}</span>
+        <span className="font-bold text-white">{tile.terrain} {tile.isHill ? '(언덕)' : ''}</span>
       </div>
+
+      {tile.hasVillage && (
+        <div className="flex justify-between items-center mb-2 text-yellow-400 font-bold">
+          <span>⛺ 부족 마을</span>
+        </div>
+      )}
       
       {tile.resource && (
         <div className="flex justify-between items-center mb-2">
@@ -50,12 +56,12 @@ const TileInfoPanel: React.FC<TileInfoPanelProps> = ({ tile, player }) => {
          </div>
          <div className="text-center">
             <div className="text-[10px] text-slate-400">매력도</div>
-            <div className="text-white font-bold">0</div>
+            <div className="text-white font-bold">{tile.rivers?.some(r => r) ? '+1' : '0'}</div>
          </div>
       </div>
 
       <h4 className="text-xs font-bold text-slate-400 mb-1">산출량</h4>
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
          {yields.food > 0 && <span className="bg-green-900/50 text-green-300 px-1.5 py-0.5 rounded text-xs">🍎 {yields.food}</span>}
          {yields.production > 0 && <span className="bg-amber-900/50 text-amber-300 px-1.5 py-0.5 rounded text-xs">⚙️ {yields.production}</span>}
          {yields.gold > 0 && <span className="bg-yellow-900/50 text-yellow-300 px-1.5 py-0.5 rounded text-xs">🪙 {yields.gold}</span>}

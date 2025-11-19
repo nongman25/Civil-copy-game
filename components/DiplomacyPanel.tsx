@@ -14,11 +14,11 @@ interface DiplomacyPanelProps {
 const DiplomacyPanel: React.FC<DiplomacyPanelProps> = ({ humanPlayer, players, onClose, onDeclareWar, onMakePeace, onGift }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   
-  // Only show players we have met (AI or Barbarians)
+  // Only show players we have met (AI only, No Barbarians)
   const opponents = players.filter(p => 
-    (p.type === PlayerType.AI || p.type === PlayerType.BARBARIAN) && 
+    p.type === PlayerType.AI && 
     p.id !== humanPlayer.id && 
-    (humanPlayer.metPlayers.includes(p.id) || p.type === PlayerType.BARBARIAN)
+    humanPlayer.metPlayers.includes(p.id)
   );
   
   const selectedPlayer = opponents.find(p => p.id === selectedId);

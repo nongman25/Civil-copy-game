@@ -85,6 +85,8 @@ export interface Tile {
   q: number;
   r: number;
   terrain: TerrainType;
+  isHill: boolean; // New
+  hasVillage: boolean; // New
   resource?: 'IRON' | 'HORSES' | 'COAL' | 'OIL' | 'ALUMINUM' | 'URANIUM' | 'WHEAT' | 'GOLD' | 'FISH' | 'WHALES' | 'CATTLE' | 'RICE';
   improvement?: 'FARM' | 'MINE' | 'PASTURE' | 'PLANTATION' | 'FISHING_BOATS' | 'CAMP' | 'OIL_WELL';
   ownerId: string | null;
@@ -105,7 +107,7 @@ export interface Unit {
   maxMoves: number;
   attackRange: number;
   strength: number;
-  buildCharges?: number; // New: For Builders
+  buildCharges?: number; 
   isFortified?: boolean;
 }
 
@@ -133,7 +135,7 @@ export interface Tech {
   description: string;
   cost: number;
   revealResource?: string;
-  prerequisites?: string[]; // New: Dependency tree
+  prerequisites?: string[];
 }
 
 export interface Civic {
@@ -142,7 +144,17 @@ export interface Civic {
   description: string;
   cost: number;
   effect?: string;
-  prerequisites?: string[]; // New: Dependency tree
+  prerequisites?: string[];
+}
+
+export interface Policy {
+    id: string;
+    name: string;
+    description: string;
+    type: 'MILITARY' | 'ECONOMIC' | 'DIPLOMATIC' | 'WILDCARD';
+    era: number;
+    requiresTech?: string;
+    requiresCivic?: string;
 }
 
 export interface Player {
@@ -153,19 +165,18 @@ export interface Player {
   gold: number;
   science: number;
   culture: number;
-  scienceYield: number; // Per turn
-  cultureYield: number; // Per turn
+  scienceYield: number; 
+  cultureYield: number; 
   isAlive: boolean;
   leaderName: string;
   currentTechId: string | null;
   currentCivicId: string | null;
   researchedTechs: string[];
   researchedCivics: string[];
-  activePolicies: {
-    borderExpansion: boolean;
-  };
+  activePolicies: string[]; // Array of Policy IDs
+  unlockedPolicies: string[]; // Array of Policy IDs
   diplomacy: Record<string, DiplomaticRelation>;
-  metPlayers: string[]; // New: List of player IDs discovered
+  metPlayers: string[]; 
 }
 
 export interface GameState {
@@ -181,6 +192,7 @@ export interface GameState {
   messages: GameMessage[];
   gameOver: boolean;
   showDiplomacy: boolean;
+  showPolicies: boolean;
 }
 
 export interface GameMessage {
